@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Navigate } from "react-router-dom";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { InfoIcon } from "lucide-react";
 
 const authFormSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -21,6 +23,8 @@ const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const { signIn, signUp, user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [emailConfirmationMessage, setEmailConfirmationMessage] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const form = useForm<AuthFormValues>({
     resolver: zodResolver(authFormSchema),
@@ -30,17 +34,37 @@ const AuthPage = () => {
     },
   });
 
+  // Clear error messages when switching between login and signup
+  useEffect(() => {
+    setAuthError(null);
+    setEmailConfirmationMessage(null);
+  }, [isLogin]);
+
   const onSubmit = async (values: AuthFormValues) => {
     try {
       setLoading(true);
+      setAuthError(null);
+      setEmailConfirmationMessage(null);
+      
       if (isLogin) {
         await signIn(values.email, values.password);
       } else {
         await signUp(values.email, values.password);
+        setEmailConfirmationMessage(
+          "Cadastro realizado! Verifique seu email para confirmação. Se não receber o email, verifique sua pasta de spam ou contate o administrador."
+        );
         setIsLogin(true);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Auth error:", error);
+      
+      if (error.message === "Email not confirmed") {
+        setAuthError(
+          "Email não confirmado. Por favor, verifique sua caixa de entrada (incluindo spam) para o link de confirmação ou contate o administrador para desativar a confirmação de email."
+        );
+      } else {
+        setAuthError(error.message || "Erro na autenticação. Tente novamente.");
+      }
     } finally {
       setLoading(false);
     }
@@ -60,7 +84,22 @@ const AuthPage = () => {
             {isLogin ? "Faça login na sua conta" : "Crie uma nova conta"}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {authError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Erro de autenticação</AlertTitle>
+              <AlertDescription>{authError}</AlertDescription>
+            </Alert>
+          )}
+          
+          {emailConfirmationMessage && (
+            <Alert className="mb-4">
+              <InfoIcon className="h-4 w-4" />
+              <AlertTitle>Email de confirmação enviado</AlertTitle>
+              <AlertDescription>{emailConfirmationMessage}</AlertDescription>
+            </Alert>
+          )}
+          
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -94,6 +133,14 @@ const AuthPage = () => {
               </Button>
             </form>
           </Form>
+          
+          <Alert className="mt-4 bg-blue-50 border border-blue-100">
+            <InfoIcon className="h-4 w-4" />
+            <AlertTitle>Dica para desenvolvedores</AlertTitle>
+            <AlertDescription>
+              Se estiver tendo problemas com "Email not confirmed", o administrador pode desativar a confirmação de email nas configurações do Supabase.
+            </AlertDescription>
+          </Alert>
         </CardContent>
         <CardFooter className="flex justify-center">
           <Button
