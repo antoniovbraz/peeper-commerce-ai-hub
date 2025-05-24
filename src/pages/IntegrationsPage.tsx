@@ -1,0 +1,213 @@
+
+import { useEffect, useState } from "react";
+import { Layout } from "@/components/layout/Layout";
+import { AuthGuard } from "@/components/AuthGuard";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ApiKey } from "@/lib/types";
+import { ShoppingCart, Package, Check, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+const IntegrationsPage = () => {
+  const { user } = useAuth();
+  const [apiKeys, setApiKeys] = useState<ApiKey | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchApiKeys = async () => {
+      setLoading(true);
+      try {
+        const { data: apiKeysData, error } = await supabase
+          .from("api_keys")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error && error.code !== "PGRST116") throw error;
+        setApiKeys(apiKeysData || null);
+      } catch (error) {
+        console.error("Erro ao carregar integrações:", error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar suas integrações",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchApiKeys();
+  }, [user]);
+
+  const handleMarketplaceConnect = async (marketplace: 'shopee' | 'mercado_livre') => {
+    toast({
+      title: "Em desenvolvimento",
+      description: `A integração com ${marketplace === 'shopee' ? 'Shopee' : 'Mercado Livre'} será implementada em breve.`,
+    });
+  };
+
+  const isShopeeConnected = apiKeys?.shopee_access_token;
+  const isMercadoLivreConnected = apiKeys?.mercado_livre_access_token;
+
+  if (loading) {
+    return (
+      <AuthGuard>
+        <Layout>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-xl">Carregando integrações...</div>
+          </div>
+        </Layout>
+      </AuthGuard>
+    );
+  }
+
+  return (
+    <AuthGuard>
+      <Layout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-3xl font-bold">Integrações com Marketplaces</h2>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Shopee Integration */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-orange-500" />
+                  Shopee
+                </CardTitle>
+                <CardDescription>
+                  Conecte sua conta da Shopee para gerenciar produtos e vendas automaticamente
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Status:</span>
+                  {isShopeeConnected ? (
+                    <Badge variant="default" className="bg-green-100 text-green-800">
+                      <Check className="h-3 w-3 mr-1" />
+                      Conta conectada
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="bg-red-100 text-red-800">
+                      <X className="h-3 w-3 mr-1" />
+                      Não conectada
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="text-sm text-gray-600">
+                  <p><strong>Benefícios da integração:</strong></p>
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Sincronização automática de produtos</li>
+                    <li>Gestão centralizada de estoque</li>
+                    <li>Análise de vendas em tempo real</li>
+                    <li>Otimização de preços automática</li>
+                  </ul>
+                </div>
+
+                <Button 
+                  onClick={() => handleMarketplaceConnect('shopee')}
+                  className="w-full"
+                  variant={isShopeeConnected ? "outline" : "default"}
+                >
+                  {isShopeeConnected ? "Reconectar" : "Conectar"} Shopee
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Mercado Livre Integration */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5 text-yellow-500" />
+                  Mercado Livre
+                </CardTitle>
+                <CardDescription>
+                  Conecte sua conta do Mercado Livre para automatizar suas operações de venda
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Status:</span>
+                  {isMercadoLivreConnected ? (
+                    <Badge variant="default" className="bg-green-100 text-green-800">
+                      <Check className="h-3 w-3 mr-1" />
+                      Conta conectada
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="bg-red-100 text-red-800">
+                      <X className="h-3 w-3 mr-1" />
+                      Não conectada
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="text-sm text-gray-600">
+                  <p><strong>Benefícios da integração:</strong></p>
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Publicação automática de produtos</li>
+                    <li>Gestão de pedidos integrada</li>
+                    <li>Relatórios de performance</li>
+                    <li>Controle de reputação</li>
+                  </ul>
+                </div>
+
+                <Button 
+                  onClick={() => handleMarketplaceConnect('mercado_livre')}
+                  className="w-full"
+                  variant={isMercadoLivreConnected ? "outline" : "default"}
+                >
+                  {isMercadoLivreConnected ? "Reconectar" : "Conectar"} Mercado Livre
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Como funciona a integração?</CardTitle>
+              <CardDescription>
+                Entenda o processo de conexão com os marketplaces
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <span className="text-blue-600 font-bold">1</span>
+                  </div>
+                  <h4 className="font-medium">Autorização</h4>
+                  <p className="text-sm text-gray-600">Clique em conectar e autorize o acesso seguro à sua conta</p>
+                </div>
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <span className="text-blue-600 font-bold">2</span>
+                  </div>
+                  <h4 className="font-medium">Sincronização</h4>
+                  <p className="text-sm text-gray-600">Seus produtos e dados são sincronizados automaticamente</p>
+                </div>
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <span className="text-blue-600 font-bold">3</span>
+                  </div>
+                  <h4 className="font-medium">Automação</h4>
+                  <p className="text-sm text-gray-600">Gerencie tudo de forma centralizada no hub</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
+    </AuthGuard>
+  );
+};
+
+export default IntegrationsPage;

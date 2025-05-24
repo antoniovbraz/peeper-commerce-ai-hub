@@ -14,6 +14,8 @@ import ContentGeneratorPage from "./pages/ContentGeneratorPage";
 import PricerPage from "./pages/PricerPage";
 import SalesPage from "./pages/SalesPage";
 import SettingsPage from "./pages/SettingsPage";
+import IntegrationsPage from "./pages/IntegrationsPage";
+import AdminPage from "./pages/AdminPage";
 
 const queryClient = new QueryClient();
 
@@ -32,7 +34,9 @@ const App = () => (
             <Route path="/content-generator" element={<ContentGeneratorPage />} />
             <Route path="/pricer" element={<PricerPage />} />
             <Route path="/sales" element={<SalesPage />} />
+            <Route path="/integrations" element={<IntegrationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/admin" element={<AdminPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

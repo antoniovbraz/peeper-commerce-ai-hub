@@ -1,7 +1,8 @@
 
 import { cn } from "@/lib/utils";
-import { BarChart4, ShoppingBag, LucideIcon, Settings, CircleDollarSign, FileText, Home } from "lucide-react";
+import { BarChart4, ShoppingBag, LucideIcon, Settings, CircleDollarSign, FileText, Home, Link2, Shield } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useAdmin } from "@/hooks/useAdmin";
 
 interface SidebarItemProps {
   icon: LucideIcon;
@@ -27,6 +28,8 @@ const SidebarItem = ({ icon: Icon, label, href }: SidebarItemProps) => {
 };
 
 export const Sidebar = () => {
+  const { isAdmin } = useAdmin();
+
   return (
     <aside className="hidden md:flex w-64 flex-col border-r bg-white">
       <div className="py-6 px-4">
@@ -38,7 +41,11 @@ export const Sidebar = () => {
         <SidebarItem icon={FileText} label="Gerador de Conteúdo" href="/content-generator" />
         <SidebarItem icon={CircleDollarSign} label="Precificador" href="/pricer" />
         <SidebarItem icon={BarChart4} label="Análise de Vendas" href="/sales" />
+        <SidebarItem icon={Link2} label="Integrações" href="/integrations" />
         <SidebarItem icon={Settings} label="Configurações" href="/settings" />
+        {isAdmin && (
+          <SidebarItem icon={Shield} label="Administração" href="/admin" />
+        )}
       </nav>
     </aside>
   );

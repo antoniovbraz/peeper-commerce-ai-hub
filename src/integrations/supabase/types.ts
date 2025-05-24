@@ -13,31 +13,90 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          mercado_livre_access_token: string | null
           mercado_livre_key: string | null
+          mercado_livre_refresh_token: string | null
           openai_key: string | null
+          shopee_access_token: string | null
           shopee_key: string | null
+          shopee_refresh_token: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
           created_at?: string | null
           id?: string
+          mercado_livre_access_token?: string | null
           mercado_livre_key?: string | null
+          mercado_livre_refresh_token?: string | null
           openai_key?: string | null
+          shopee_access_token?: string | null
           shopee_key?: string | null
+          shopee_refresh_token?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
           created_at?: string | null
           id?: string
+          mercado_livre_access_token?: string | null
           mercado_livre_key?: string | null
+          mercado_livre_refresh_token?: string | null
           openai_key?: string | null
+          shopee_access_token?: string | null
           shopee_key?: string | null
+          shopee_refresh_token?: string | null
           updated_at?: string | null
           user_id?: string
         }
         Relationships: []
+      }
+      generated_descriptions: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          marketplace: string
+          product_id: string | null
+          style: string | null
+          tags: string[] | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          marketplace: string
+          product_id?: string | null
+          style?: string | null
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          marketplace?: string
+          product_id?: string | null
+          style?: string | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_descriptions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       marketplace_listings: {
         Row: {
@@ -144,6 +203,7 @@ export type Database = {
           first_name: string | null
           id: string
           last_name: string | null
+          role: string
           updated_at: string | null
         }
         Insert: {
@@ -152,6 +212,7 @@ export type Database = {
           first_name?: string | null
           id: string
           last_name?: string | null
+          role?: string
           updated_at?: string | null
         }
         Update: {
@@ -160,6 +221,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           last_name?: string | null
+          role?: string
           updated_at?: string | null
         }
         Relationships: []
@@ -223,6 +285,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      system_settings: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
