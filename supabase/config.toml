@@ -1,1 +1,8 @@
+
 project_id = "wvkgjhykeflyyntqgyja"
+
+[functions.generate-content]
+verify_jwt = false
+
+[functions.meli-callback]
+verify_jwt = false

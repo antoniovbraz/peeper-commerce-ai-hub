@@ -14,8 +14,10 @@ export type Database = {
           created_at: string | null
           id: string
           mercado_livre_access_token: string | null
+          mercado_livre_expires_at: string | null
           mercado_livre_key: string | null
           mercado_livre_refresh_token: string | null
+          mercado_livre_user_id: string | null
           openai_key: string | null
           shopee_access_token: string | null
           shopee_key: string | null
@@ -27,8 +29,10 @@ export type Database = {
           created_at?: string | null
           id?: string
           mercado_livre_access_token?: string | null
+          mercado_livre_expires_at?: string | null
           mercado_livre_key?: string | null
           mercado_livre_refresh_token?: string | null
+          mercado_livre_user_id?: string | null
           openai_key?: string | null
           shopee_access_token?: string | null
           shopee_key?: string | null
@@ -40,8 +44,10 @@ export type Database = {
           created_at?: string | null
           id?: string
           mercado_livre_access_token?: string | null
+          mercado_livre_expires_at?: string | null
           mercado_livre_key?: string | null
           mercado_livre_refresh_token?: string | null
+          mercado_livre_user_id?: string | null
           openai_key?: string | null
           shopee_access_token?: string | null
           shopee_key?: string | null
