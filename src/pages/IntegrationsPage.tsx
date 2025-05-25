@@ -67,7 +67,7 @@ const IntegrationsPage = () => {
     const redirectUri = `https://wvkgjhykeflyyntqgyja.supabase.co/functions/v1/meli-callback`;
     const state = user.id; // Passar o user_id como state para identificar o usuário
 
-    const authUrl = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+    const authUrl = `https://auth.mercadolibre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
 
     // Abrir popup para autorização
     const popup = window.open(

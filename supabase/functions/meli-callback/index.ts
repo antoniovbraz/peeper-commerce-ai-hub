@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Trocar o código por tokens
+    // Trocar o código por tokens - usando URL brasileira
     const tokenResponse = await fetch('https://api.mercadolibre.com/oauth/token', {
       method: 'POST',
       headers: {
