@@ -64,7 +64,7 @@ const IntegrationsPage = () => {
 
     // URL do aplicativo Mercado Livre com parâmetros corretos
     const clientId = '2824444403230454'; // ID do seu app ML
-    const redirectUri = `${supabase.supabaseUrl}/functions/v1/meli-callback`;
+    const redirectUri = `https://wvkgjhykeflyyntqgyja.supabase.co/functions/v1/meli-callback`;
     const state = user.id; // Passar o user_id como state para identificar o usuário
 
     const authUrl = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
