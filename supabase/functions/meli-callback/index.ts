@@ -25,11 +25,46 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state'); // Este será o user_id
+    const error = url.searchParams.get('error');
+    const errorDescription = url.searchParams.get('error_description');
     
-    console.log('Mercado Livre callback received:', { code: !!code, state });
+    console.log('Mercado Livre Brasil callback recebido:', { 
+      code: !!code, 
+      state, 
+      error, 
+      errorDescription,
+      fullUrl: req.url 
+    });
+
+    // Se houve erro na autorização
+    if (error) {
+      console.error('Erro na autorização ML:', { error, errorDescription });
+      return new Response(
+        `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Erro na Autorização</title>
+          <meta charset="utf-8">
+        </head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h1 style="color: #e74c3c;">❌ Erro na Autorização</h1>
+          <p><strong>Erro:</strong> ${error}</p>
+          <p><strong>Descrição:</strong> ${errorDescription || 'Erro desconhecido'}</p>
+          <p>Tente novamente ou contate o suporte.</p>
+          <button onclick="window.close()" style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Fechar esta aba</button>
+        </body>
+        </html>
+        `,
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'text/html' }
+        }
+      );
+    }
 
     if (!code) {
-      console.error('No authorization code received');
+      console.error('Código de autorização não encontrado');
       return new Response(
         `
         <!DOCTYPE html>
@@ -57,7 +92,38 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Trocar o código por tokens - usando novo Client ID
+    // Configuração para Mercado Livre Brasil
+    const clientId = '8529134737204834';
+    const clientSecret = Deno.env.get('MERCADO_LIVRE_CLIENT_SECRET');
+    const redirectUri = `${supabaseUrl}/functions/v1/meli-callback`;
+
+    if (!clientSecret) {
+      console.error('MERCADO_LIVRE_CLIENT_SECRET não configurado');
+      return new Response(
+        `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Erro de Configuração</title>
+          <meta charset="utf-8">
+        </head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h1 style="color: #e74c3c;">❌ Erro de Configuração</h1>
+          <p>Client Secret não configurado. Contate o administrador.</p>
+          <button onclick="window.close()" style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Fechar esta aba</button>
+        </body>
+        </html>
+        `,
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'text/html' }
+        }
+      );
+    }
+
+    console.log('Iniciando troca de código por tokens ML Brasil...');
+
+    // Trocar o código por tokens no Mercado Livre Brasil
     const tokenResponse = await fetch('https://api.mercadolibre.com/oauth/token', {
       method: 'POST',
       headers: {
@@ -66,16 +132,20 @@ Deno.serve(async (req) => {
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        client_id: '8529134737204834', // Novo ID do seu app ML
-        client_secret: Deno.env.get('MERCADO_LIVRE_CLIENT_SECRET') || '',
+        client_id: clientId,
+        client_secret: clientSecret,
         code: code,
-        redirect_uri: `${supabaseUrl}/functions/v1/meli-callback`
+        redirect_uri: redirectUri
       })
     });
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
-      console.error('Error exchanging code for token:', errorText);
+      console.error('Erro ao trocar código por token:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: errorText
+      });
       
       return new Response(
         `
@@ -87,7 +157,9 @@ Deno.serve(async (req) => {
         </head>
         <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
           <h1 style="color: #e74c3c;">❌ Erro na Conexão</h1>
-          <p>Falha ao obter tokens do Mercado Livre. Tente novamente.</p>
+          <p>Falha ao obter tokens do Mercado Livre Brasil.</p>
+          <p><strong>Status:</strong> ${tokenResponse.status}</p>
+          <p><strong>Erro:</strong> ${errorText}</p>
           <button onclick="window.close()" style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Fechar esta aba</button>
         </body>
         </html>
@@ -100,15 +172,17 @@ Deno.serve(async (req) => {
     }
 
     const tokenData: MercadoLivreTokenResponse = await tokenResponse.json();
-    console.log('Token exchange successful for user:', tokenData.user_id);
+    console.log('Troca de tokens bem-sucedida para usuário ML:', tokenData.user_id);
 
     // Calcular data de expiração
     const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000));
 
-    // Salvar tokens no banco de dados
-    // Se state foi fornecido, usar como user_id, senão usar o user_id do token
+    // Usar o state como user_id, ou usar o user_id do token como fallback
     const userId = state || tokenData.user_id.toString();
 
+    console.log('Salvando tokens para usuário:', userId);
+
+    // Salvar tokens no banco de dados
     const { error: upsertError } = await supabase
       .from('api_keys')
       .upsert({
@@ -123,7 +197,7 @@ Deno.serve(async (req) => {
       });
 
     if (upsertError) {
-      console.error('Error saving tokens:', upsertError);
+      console.error('Erro ao salvar tokens:', upsertError);
       
       return new Response(
         `
@@ -136,6 +210,7 @@ Deno.serve(async (req) => {
         <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
           <h1 style="color: #e74c3c;">❌ Erro ao Salvar</h1>
           <p>Tokens obtidos, mas houve erro ao salvar no banco de dados.</p>
+          <p><strong>Erro:</strong> ${upsertError.message}</p>
           <button onclick="window.close()" style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Fechar esta aba</button>
         </body>
         </html>
@@ -147,7 +222,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Mercado Livre connection successful for user:', userId);
+    console.log('Conexão com Mercado Livre Brasil bem-sucedida para usuário:', userId);
 
     // Retornar página de sucesso
     return new Response(
@@ -180,7 +255,8 @@ Deno.serve(async (req) => {
       <body>
         <div class="container">
           <h1 style="color: #27ae60; margin-bottom: 20px;">✅ Conexão Bem-sucedida!</h1>
-          <p style="font-size: 18px; margin-bottom: 20px;">Sua conta do Mercado Livre foi conectada com sucesso.</p>
+          <p style="font-size: 18px; margin-bottom: 20px;">Sua conta do Mercado Livre Brasil foi conectada com sucesso.</p>
+          <p style="color: #666; margin-bottom: 10px;"><strong>ID do usuário ML:</strong> ${tokenData.user_id}</p>
           <p style="color: #666; margin-bottom: 30px;">Você pode fechar esta aba e retornar ao aplicativo.</p>
           <button onclick="window.close()" style="padding: 12px 24px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">Fechar esta aba</button>
         </div>
@@ -190,7 +266,7 @@ Deno.serve(async (req) => {
             try {
               window.close();
             } catch(e) {
-              console.log('Auto-close not supported');
+              console.log('Auto-close não suportado');
             }
           }, 3000);
         </script>
@@ -204,7 +280,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Unexpected error in meli-callback:', error);
+    console.error('Erro inesperado no meli-callback:', error);
     
     return new Response(
       `
@@ -216,7 +292,8 @@ Deno.serve(async (req) => {
       </head>
       <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
         <h1 style="color: #e74c3c;">❌ Erro Inesperado</h1>
-        <p>Ocorreu um erro inesperado. Tente novamente.</p>
+        <p>Ocorreu um erro inesperado: ${error.message}</p>
+        <p>Tente novamente ou contate o suporte.</p>
         <button onclick="window.close()" style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Fechar esta aba</button>
       </body>
       </html>

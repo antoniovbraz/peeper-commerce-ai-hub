@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { AuthGuard } from "@/components/AuthGuard";
@@ -62,35 +61,80 @@ const IntegrationsPage = () => {
       return;
     }
 
-    // URL do aplicativo Mercado Livre com novo Client ID
-    const clientId = '8529134737204834'; // Novo ID do seu app ML
-    const redirectUri = `https://wvkgjhykeflyyntqgyja.supabase.co/functions/v1/meli-callback`;
-    const state = user.id; // Passar o user_id como state para identificar o usuário
+    try {
+      // Configuração para Mercado Livre Brasil
+      const clientId = '8529134737204834';
+      const redirectUri = 'https://wvkgjhykeflyyntqgyja.supabase.co/functions/v1/meli-callback';
+      const state = user.id; // Usar user_id como state
 
-    const authUrl = `https://auth.mercadolibre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+      // URL de autorização do Mercado Livre Brasil
+      const authUrl = `https://auth.mercadolibre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
 
-    // Abrir popup para autorização
-    const popup = window.open(
-      authUrl,
-      'mercado_livre_auth',
-      'width=600,height=700,scrollbars=yes,resizable=yes'
-    );
+      console.log('Abrindo URL de autorização ML:', authUrl);
 
-    // Monitorar se o popup foi fechado
-    const checkClosed = setInterval(() => {
-      if (popup?.closed) {
-        clearInterval(checkClosed);
-        // Recarregar dados após possível conexão
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
+      // Abrir popup para autorização
+      const popup = window.open(
+        authUrl,
+        'mercado_livre_auth',
+        'width=600,height=700,scrollbars=yes,resizable=yes,status=yes,location=yes'
+      );
+
+      if (!popup) {
+        toast({
+          title: "Erro",
+          description: "Não foi possível abrir a janela de autorização. Verifique se o bloqueador de pop-ups está desabilitado.",
+          variant: "destructive"
+        });
+        return;
       }
-    }, 1000);
 
-    toast({
-      title: "Redirecionando...",
-      description: "Você será direcionado para autorizar a conexão com o Mercado Livre.",
-    });
+      // Monitorar se o popup foi fechado
+      const checkClosed = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkClosed);
+          console.log('Popup do ML fechado, recarregando dados...');
+          // Recarregar dados após possível conexão
+          setTimeout(() => {
+            fetchApiKeys();
+          }, 1000);
+        }
+      }, 1000);
+
+      // Timeout para limpar o intervalo após 5 minutos
+      setTimeout(() => {
+        clearInterval(checkClosed);
+      }, 300000);
+
+      toast({
+        title: "Redirecionando...",
+        description: "Você será direcionado para autorizar a conexão com o Mercado Livre Brasil.",
+      });
+
+    } catch (error) {
+      console.error('Erro ao iniciar autorização ML:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao iniciar processo de autorização. Tente novamente.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const fetchApiKeys = async () => {
+    if (!user) return;
+    
+    try {
+      const { data: apiKeysData, error } = await supabase
+        .from("api_keys")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error && error.code !== "PGRST116") throw error;
+      setApiKeys(apiKeysData || null);
+    } catch (error) {
+      console.error("Erro ao recarregar integrações:", error);
+    }
   };
 
   const isShopeeConnected = apiKeys?.shopee_access_token;
@@ -178,10 +222,10 @@ const IntegrationsPage = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ShoppingCart className="h-5 w-5 text-yellow-500" />
-                  Mercado Livre
+                  Mercado Livre Brasil
                 </CardTitle>
                 <CardDescription>
-                  Conecte sua conta do Mercado Livre para automatizar suas operações de venda
+                  Conecte sua conta do Mercado Livre Brasil para automatizar suas operações de venda
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -232,7 +276,7 @@ const IntegrationsPage = () => {
                   variant={isMercadoLivreConnected ? "outline" : "default"}
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  {isMercadoLivreConnected ? "Reconectar" : "Conectar"} Mercado Livre
+                  {isMercadoLivreConnected ? "Reconectar" : "Conectar"} Mercado Livre Brasil
                 </Button>
               </CardContent>
             </Card>
