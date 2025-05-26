@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Trocar o código por tokens - usando URL brasileira
+    // Trocar o código por tokens - usando novo Client ID
     const tokenResponse = await fetch('https://api.mercadolibre.com/oauth/token', {
       method: 'POST',
       headers: {
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        client_id: '2824444403230454', // ID do seu app ML
+        client_id: '8529134737204834', // Novo ID do seu app ML
         client_secret: Deno.env.get('MERCADO_LIVRE_CLIENT_SECRET') || '',
         code: code,
         redirect_uri: `${supabaseUrl}/functions/v1/meli-callback`

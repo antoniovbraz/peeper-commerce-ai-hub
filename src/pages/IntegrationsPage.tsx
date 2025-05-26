@@ -62,8 +62,8 @@ const IntegrationsPage = () => {
       return;
     }
 
-    // URL do aplicativo Mercado Livre com parâmetros corretos
-    const clientId = '2824444403230454'; // ID do seu app ML
+    // URL do aplicativo Mercado Livre com novo Client ID
+    const clientId = '8529134737204834'; // Novo ID do seu app ML
     const redirectUri = `https://wvkgjhykeflyyntqgyja.supabase.co/functions/v1/meli-callback`;
     const state = user.id; // Passar o user_id como state para identificar o usuário
 
