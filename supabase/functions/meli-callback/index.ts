@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
-    const state = url.searchParams.get('state'); // Este será o user_id
+    const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
     const errorDescription = url.searchParams.get('error_description');
     
@@ -63,8 +63,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!code) {
-      console.error('Código de autorização não encontrado');
+    if (!code || !state) {
+      console.error('Código ou state não encontrados');
       return new Response(
         `
         <!DOCTYPE html>
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
         </head>
         <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
           <h1 style="color: #e74c3c;">❌ Erro na Conexão</h1>
-          <p>Código de autorização não encontrado. Tente novamente.</p>
+          <p>Parâmetros de autorização inválidos. Tente novamente.</p>
           <button onclick="window.close()" style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Fechar esta aba</button>
         </body>
         </html>
@@ -92,13 +92,44 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Configuração para Mercado Livre Brasil
-    const clientId = '8529134737204834';
-    const clientSecret = Deno.env.get('MERCADO_LIVRE_CLIENT_SECRET');
-    const redirectUri = `${supabaseUrl}/functions/v1/meli-callback`;
+    // Buscar o estado de autenticação salvo
+    const { data: authState, error: stateError } = await supabase
+      .from('meli_auth_states')
+      .select('user_id, code_verifier')
+      .eq('state', state)
+      .single();
 
-    if (!clientSecret) {
-      console.error('MERCADO_LIVRE_CLIENT_SECRET não configurado');
+    if (stateError || !authState) {
+      console.error('Estado de autenticação não encontrado:', stateError);
+      return new Response(
+        `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Erro de Segurança</title>
+          <meta charset="utf-8">
+        </head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h1 style="color: #e74c3c;">❌ Erro de Segurança</h1>
+          <p>Estado de autenticação inválido ou expirado. Tente novamente.</p>
+          <button onclick="window.close()" style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Fechar esta aba</button>
+        </body>
+        </html>
+        `,
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'text/html' }
+        }
+      );
+    }
+
+    // Configuração para Mercado Livre Brasil
+    const clientId = Deno.env.get('MERCADO_LIVRE_CLIENT_ID');
+    const clientSecret = Deno.env.get('MERCADO_LIVRE_CLIENT_SECRET');
+    const redirectUri = Deno.env.get('MERCADO_LIVRE_REDIRECT_URI');
+
+    if (!clientId || !clientSecret || !redirectUri) {
+      console.error('Configurações ML não encontradas');
       return new Response(
         `
         <!DOCTYPE html>
@@ -109,7 +140,7 @@ Deno.serve(async (req) => {
         </head>
         <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
           <h1 style="color: #e74c3c;">❌ Erro de Configuração</h1>
-          <p>Client Secret não configurado. Contate o administrador.</p>
+          <p>Configurações do Mercado Livre não encontradas. Contate o administrador.</p>
           <button onclick="window.close()" style="padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Fechar esta aba</button>
         </body>
         </html>
@@ -121,9 +152,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Iniciando troca de código por tokens ML Brasil...');
+    console.log('Trocando código por tokens com PKCE para usuário:', authState.user_id);
 
-    // Trocar o código por tokens no Mercado Livre Brasil
+    // Trocar o código por tokens usando PKCE
     const tokenResponse = await fetch('https://api.mercadolibre.com/oauth/token', {
       method: 'POST',
       headers: {
@@ -135,7 +166,8 @@ Deno.serve(async (req) => {
         client_id: clientId,
         client_secret: clientSecret,
         code: code,
-        redirect_uri: redirectUri
+        redirect_uri: redirectUri,
+        code_verifier: authState.code_verifier
       })
     });
 
@@ -172,21 +204,18 @@ Deno.serve(async (req) => {
     }
 
     const tokenData: MercadoLivreTokenResponse = await tokenResponse.json();
-    console.log('Troca de tokens bem-sucedida para usuário ML:', tokenData.user_id);
+    console.log('Tokens obtidos com sucesso para usuário ML:', tokenData.user_id);
 
     // Calcular data de expiração
     const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000));
 
-    // Usar o state como user_id, ou usar o user_id do token como fallback
-    const userId = state || tokenData.user_id.toString();
-
-    console.log('Salvando tokens para usuário:', userId);
+    console.log('Salvando tokens para usuário Supabase:', authState.user_id);
 
     // Salvar tokens no banco de dados
     const { error: upsertError } = await supabase
       .from('api_keys')
       .upsert({
-        user_id: userId,
+        user_id: authState.user_id,
         mercado_livre_access_token: tokenData.access_token,
         mercado_livre_refresh_token: tokenData.refresh_token,
         mercado_livre_user_id: tokenData.user_id.toString(),
@@ -222,7 +251,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Conexão com Mercado Livre Brasil bem-sucedida para usuário:', userId);
+    // Limpar estado temporário
+    await supabase
+      .from('meli_auth_states')
+      .delete()
+      .eq('state', state);
+
+    console.log('Conexão com Mercado Livre Brasil bem-sucedida para usuário:', authState.user_id);
 
     // Retornar página de sucesso
     return new Response(
@@ -255,7 +290,7 @@ Deno.serve(async (req) => {
       <body>
         <div class="container">
           <h1 style="color: #27ae60; margin-bottom: 20px;">✅ Conexão Bem-sucedida!</h1>
-          <p style="font-size: 18px; margin-bottom: 20px;">Sua conta do Mercado Livre Brasil foi conectada com sucesso.</p>
+          <p style="font-size: 18px; margin-bottom: 20px;">Sua conta do Mercado Livre Brasil foi conectada com sucesso usando OAuth2 + PKCE.</p>
           <p style="color: #666; margin-bottom: 10px;"><strong>ID do usuário ML:</strong> ${tokenData.user_id}</p>
           <p style="color: #666; margin-bottom: 30px;">Você pode fechar esta aba e retornar ao aplicativo.</p>
           <button onclick="window.close()" style="padding: 12px 24px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">Fechar esta aba</button>

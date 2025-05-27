@@ -6,3 +6,9 @@ verify_jwt = false
 
 [functions.meli-callback]
 verify_jwt = false
+
+[functions.meli-auth-start]
+verify_jwt = false
+
+[functions.meli-refresh]
+verify_jwt = false

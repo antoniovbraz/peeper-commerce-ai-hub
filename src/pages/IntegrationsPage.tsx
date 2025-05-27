@@ -14,6 +14,7 @@ const IntegrationsPage = () => {
   const { user } = useAuth();
   const [apiKeys, setApiKeys] = useState<ApiKey | null>(null);
   const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -51,7 +52,7 @@ const IntegrationsPage = () => {
     });
   };
 
-  const handleMercadoLivreConnect = () => {
+  const handleMercadoLivreConnect = async () => {
     if (!user) {
       toast({
         title: "Erro",
@@ -61,20 +62,43 @@ const IntegrationsPage = () => {
       return;
     }
 
+    setConnecting(true);
+
     try {
-      // Configuração para Mercado Livre Brasil
-      const clientId = '8529134737204834';
-      const redirectUri = 'https://wvkgjhykeflyyntqgyja.supabase.co/functions/v1/meli-callback';
-      const state = user.id; // Usar user_id como state
+      console.log('Iniciando processo de conexão ML com PKCE...');
 
-      // URL de autorização do Mercado Livre Brasil
-      const authUrl = `https://auth.mercadolibre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
+      // Chamar a edge function para iniciar o processo OAuth2 com PKCE
+      const { data, error } = await supabase.functions.invoke('meli-auth-start', {
+        headers: {
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+      });
 
-      console.log('Abrindo URL de autorização ML:', authUrl);
+      if (error) {
+        console.error('Erro ao iniciar autenticação ML:', error);
+        toast({
+          title: "Erro",
+          description: "Erro ao iniciar processo de autorização. Tente novamente.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!data?.authUrl) {
+        console.error('URL de autorização não retornada');
+        toast({
+          title: "Erro",
+          description: "Erro interno. Tente novamente.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('URL de autorização recebida, abrindo popup...');
 
       // Abrir popup para autorização
       const popup = window.open(
-        authUrl,
+        data.authUrl,
         'mercado_livre_auth',
         'width=600,height=700,scrollbars=yes,resizable=yes,status=yes,location=yes'
       );
@@ -93,6 +117,7 @@ const IntegrationsPage = () => {
         if (popup?.closed) {
           clearInterval(checkClosed);
           console.log('Popup do ML fechado, recarregando dados...');
+          setConnecting(false);
           // Recarregar dados após possível conexão
           setTimeout(() => {
             fetchApiKeys();
@@ -103,18 +128,69 @@ const IntegrationsPage = () => {
       // Timeout para limpar o intervalo após 5 minutos
       setTimeout(() => {
         clearInterval(checkClosed);
+        setConnecting(false);
       }, 300000);
 
       toast({
         title: "Redirecionando...",
-        description: "Você será direcionado para autorizar a conexão com o Mercado Livre Brasil.",
+        description: "Você será direcionado para autorizar a conexão com o Mercado Livre Brasil usando OAuth2 + PKCE.",
       });
 
     } catch (error) {
       console.error('Erro ao iniciar autorização ML:', error);
+      setConnecting(false);
       toast({
         title: "Erro",
         description: "Erro ao iniciar processo de autorização. Tente novamente.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleMercadoLivreRefresh = async () => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Você precisa estar logado para renovar os tokens.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      console.log('Renovando tokens ML...');
+
+      const { data, error } = await supabase.functions.invoke('meli-refresh', {
+        headers: {
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+      });
+
+      if (error) {
+        console.error('Erro ao renovar tokens ML:', error);
+        toast({
+          title: "Erro ao renovar",
+          description: "Não foi possível renovar os tokens. Tente reconectar sua conta.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (data?.success) {
+        toast({
+          title: "Tokens renovados",
+          description: "Seus tokens do Mercado Livre foram renovados com sucesso.",
+        });
+        
+        // Recarregar dados
+        fetchApiKeys();
+      }
+
+    } catch (error) {
+      console.error('Erro ao renovar tokens:', error);
+      toast({
+        title: "Erro",
+        description: "Erro interno ao renovar tokens. Tente novamente.",
         variant: "destructive"
       });
     }
@@ -223,9 +299,10 @@ const IntegrationsPage = () => {
                 <CardTitle className="flex items-center gap-2">
                   <ShoppingCart className="h-5 w-5 text-yellow-500" />
                   Mercado Livre Brasil
+                  <Badge variant="outline" className="text-xs">OAuth2 + PKCE</Badge>
                 </CardTitle>
                 <CardDescription>
-                  Conecte sua conta do Mercado Livre Brasil para automatizar suas operações de venda
+                  Conecte sua conta do Mercado Livre Brasil com autenticação segura OAuth2 + PKCE
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -261,23 +338,37 @@ const IntegrationsPage = () => {
                 )}
 
                 <div className="text-sm text-gray-600">
-                  <p><strong>Benefícios da integração:</strong></p>
+                  <p><strong>Benefícios da integração OAuth2 + PKCE:</strong></p>
                   <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Autenticação máxima segurança</li>
+                    <li>Renovação automática de tokens</li>
                     <li>Publicação automática de produtos</li>
                     <li>Gestão de pedidos integrada</li>
                     <li>Relatórios de performance</li>
-                    <li>Controle de reputação</li>
                   </ul>
                 </div>
 
-                <Button 
-                  onClick={handleMercadoLivreConnect}
-                  className="w-full"
-                  variant={isMercadoLivreConnected ? "outline" : "default"}
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  {isMercadoLivreConnected ? "Reconectar" : "Conectar"} Mercado Livre Brasil
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleMercadoLivreConnect}
+                    className="flex-1"
+                    variant={isMercadoLivreConnected ? "outline" : "default"}
+                    disabled={connecting}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    {connecting ? "Conectando..." : (isMercadoLivreConnected ? "Reconectar" : "Conectar")}
+                  </Button>
+                  
+                  {isMercadoLivreConnected && (
+                    <Button 
+                      onClick={handleMercadoLivreRefresh}
+                      variant="secondary"
+                      size="sm"
+                    >
+                      🔄 Renovar
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
