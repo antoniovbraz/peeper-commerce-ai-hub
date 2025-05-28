@@ -1,5 +1,6 @@
 
-import { corsHeaders, createErrorPage } from './html-responses.ts';
+import { corsHeaders } from './types.ts';
+import { createErrorPage } from './html-responses.ts';
 
 export const validateCallbackParams = (url: URL) => {
   const code = url.searchParams.get('code');

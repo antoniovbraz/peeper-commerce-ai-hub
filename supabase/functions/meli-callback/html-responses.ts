@@ -1,4 +1,9 @@
 
+export const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 export const createErrorPage = (title: string, message: string, details?: string) => `
 <!DOCTYPE html>
 <html>
