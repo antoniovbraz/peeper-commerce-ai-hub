@@ -38,9 +38,13 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log('🚀 Iniciando função meli-auth-start');
+    console.log('📋 Headers recebidos:', Object.fromEntries(req.headers.entries()));
+
     // Verificar se o usuário está autenticado
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('❌ Authorization header não encontrado');
       return new Response(
         JSON.stringify({ error: 'Authorization header required' }),
         { 
@@ -50,17 +54,46 @@ Deno.serve(async (req) => {
       );
     }
 
+    console.log('✅ Authorization header encontrado');
+
+    // Verificar variáveis de ambiente do Mercado Livre
+    const clientId = Deno.env.get('MERCADO_LIVRE_CLIENT_ID');
+    const redirectUri = Deno.env.get('MERCADO_LIVRE_REDIRECT_URI');
+
+    console.log('🔍 Verificando variáveis de ambiente:');
+    console.log('- MERCADO_LIVRE_CLIENT_ID:', clientId ? '✅ Configurado' : '❌ Não configurado');
+    console.log('- MERCADO_LIVRE_REDIRECT_URI:', redirectUri ? '✅ Configurado' : '❌ Não configurado');
+
+    if (!clientId || !redirectUri) {
+      console.error('❌ Variáveis de ambiente ML não configuradas');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Mercado Livre configuration missing',
+          details: {
+            clientId: !!clientId,
+            redirectUri: !!redirectUri
+          }
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
     // Inicializar Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    console.log('🔧 Inicializando Supabase client');
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verificar o usuário autenticado
     const token = authHeader.replace('Bearer ', '');
+    console.log('🔐 Verificando token de autenticação');
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
-      console.error('Erro ao verificar usuário:', userError);
+      console.error('❌ Erro ao verificar usuário:', userError);
       return new Response(
         JSON.stringify({ error: 'Invalid authentication token' }),
         { 
@@ -70,41 +103,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Iniciando processo de autenticação ML para usuário:', user.id);
-
-    // Configurações do Mercado Livre Brasil
-    const clientId = Deno.env.get('MERCADO_LIVRE_CLIENT_ID');
-    const redirectUri = Deno.env.get('MERCADO_LIVRE_REDIRECT_URI');
-
-    if (!clientId || !redirectUri) {
-      console.error('Variáveis de ambiente ML não configuradas');
-      return new Response(
-        JSON.stringify({ error: 'Mercado Livre configuration missing' }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
+    console.log('✅ Usuário autenticado:', user.id);
 
     // Gerar PKCE parameters
     const codeVerifier = generateRandomString(128);
     const codeChallenge = await generateCodeChallenge(codeVerifier);
     const state = crypto.randomUUID();
 
-    console.log('Gerados parâmetros PKCE:', { 
-      codeVerifier: codeVerifier.substring(0, 10) + '...', 
-      codeChallenge: codeChallenge.substring(0, 10) + '...',
-      state 
-    });
+    console.log('🔑 Parâmetros PKCE gerados:');
+    console.log('- Code verifier (primeiros 20 chars):', codeVerifier.substring(0, 20) + '...');
+    console.log('- Code challenge (primeiros 20 chars):', codeChallenge.substring(0, 20) + '...');
+    console.log('- State:', state);
 
     // Limpar estados antigos do usuário
-    await supabase
+    console.log('🧹 Limpando estados antigos do usuário');
+    const { error: deleteError } = await supabase
       .from('meli_auth_states')
       .delete()
       .eq('user_id', user.id);
 
+    if (deleteError) {
+      console.warn('⚠️ Aviso ao limpar estados antigos:', deleteError);
+    }
+
     // Salvar estado temporário no banco
+    console.log('💾 Salvando estado de autenticação no banco');
     const { error: insertError } = await supabase
       .from('meli_auth_states')
       .insert({
@@ -114,15 +137,20 @@ Deno.serve(async (req) => {
       });
 
     if (insertError) {
-      console.error('Erro ao salvar estado de autenticação:', insertError);
+      console.error('❌ Erro ao salvar estado de autenticação:', insertError);
       return new Response(
-        JSON.stringify({ error: 'Failed to save auth state' }),
+        JSON.stringify({ 
+          error: 'Failed to save auth state',
+          details: insertError
+        }),
         { 
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
+
+    console.log('✅ Estado de autenticação salvo com sucesso');
 
     // Construir URL de autorização do Mercado Livre Brasil
     const authUrl = new URL('https://auth.mercadolibre.com/authorization');
@@ -134,12 +162,22 @@ Deno.serve(async (req) => {
     authUrl.searchParams.set('state', state);
     authUrl.searchParams.set('site_id', 'MLB'); // Brasil
 
-    console.log('URL de autorização gerada:', authUrl.toString());
+    console.log('🌐 URL de autorização construída:');
+    console.log('- URL completa:', authUrl.toString());
+    console.log('- Parâmetros:', Object.fromEntries(authUrl.searchParams.entries()));
+
+    console.log('🎉 Processo de autenticação iniciado com sucesso');
 
     return new Response(
       JSON.stringify({ 
         authUrl: authUrl.toString(),
-        state: state 
+        state: state,
+        debug: {
+          userId: user.id,
+          timestamp: new Date().toISOString(),
+          clientId: clientId,
+          redirectUri: redirectUri
+        }
       }),
       { 
         status: 200,
@@ -148,9 +186,13 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Erro inesperado em meli-auth-start:', error);
+    console.error('💥 Erro inesperado em meli-auth-start:', error);
+    console.error('📊 Stack trace:', error.stack);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ 
+        error: 'Internal server error',
+        details: error.message
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
